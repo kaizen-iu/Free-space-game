@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>مختبر القوى - Free Space</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#07090c;color:#e8ecef;font-family:Arial,Tahoma,sans-serif}
+#app{width:min(920px,96vw);margin:15px auto}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.title{font-size:24px;font-weight:bold}
+.subtitle{color:#8f9aa2;font-size:12px;margin-top:4px}
+.hud{display:flex;gap:7px;flex-wrap:wrap}
+.pill{background:#151a1f;border:1px solid #30383f;border-radius:9px;padding:7px 10px;font-size:12px}
+.pill b{color:#fff}
+.game{border:1px solid #343c43;border-radius:14px;overflow:hidden;background:#05070a;position:relative}
+canvas{display:block;width:100%;height:auto;touch-action:none}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:9px}
+.box{background:#151a1f;border:1px solid #30383f;border-radius:9px;padding:9px}
+.box small{display:block;color:#89949d;font-size:10px}
+.box b{font-size:13px}
+.buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+button{min-height:45px;border-radius:9px;border:1px solid #4b5861;background:#20272d;color:white;font-size:14px;font-weight:bold;cursor:pointer}
+button:focus-visible{outline:2px solid #a8d7ee;outline-offset:2px}
+button.primary{background:#315d78}
+button:disabled{opacity:.55;cursor:not-allowed}
+.mobile{display:none;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}
+.mobile button{font-size:20px;touch-action:none;user-select:none}
+.mobile .wide{grid-column:1/-1;font-size:13px}
+.info{margin-top:9px;padding:10px;background:#151a1f;border:1px solid #30383f;border-radius:9px;color:#c5cdd2;font-size:12px;line-height:1.8}
+.question-overlay{position:absolute;inset:0;z-index:5;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(3,7,11,.88);backdrop-filter:blur(4px)}
+.question-overlay.show{display:flex}
+.question-card{width:min(560px,100%);max-height:100%;overflow:auto;background:#111820;border:1px solid #52616b;border-radius:15px;padding:18px;box-shadow:0 15px 50px #0009}
+.question-top{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.tag{font-size:11px;padding:5px 8px;border-radius:7px;background:#202d37;color:#c9e8f7}
+.question-text{font-size:19px;line-height:1.7;font-weight:bold;margin:10px 0 14px}
+.answers{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.answer{padding:11px 9px;text-align:right;line-height:1.5;min-height:52px}
+.answer.correct{background:#204b39;border-color:#55a982}
+.answer.wrong{background:#512b2b;border-color:#c36e6e}
+.feedback{display:none;margin-top:12px;padding:11px;border:1px solid #3c4a53;background:#19232b;border-radius:9px;font-size:13px;line-height:1.8}
+.feedback.show{display:block}
+.question-actions{display:flex;gap:8px;margin-top:12px}
+.question-actions button{flex:1}
+@media(max-width:650px){
+ .title{font-size:20px}.stats{grid-template-columns:1fr 1fr}.mobile{display:grid}
+ .question-overlay{padding:9px}.question-card{padding:13px}.question-text{font-size:16px}
+ .answers{grid-template-columns:1fr 1fr}.answer{font-size:12px;padding:9px 7px;min-height:48px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <div>
+    <div class="title">🚀 مختبر القوى — Free Space</div>
+    <div class="subtitle">لعبة أركيد فضائية تعليمية — لعب حر بلا مراحل</div>
+  </div>
+  <div class="hud">
+    <div class="pill">النقاط <b id="score">0</b></div>
+    <div class="pill">الوقود <b id="fuel">100</b>%</div>
+    <div class="pill">الأسئلة <b id="questionCount">0/30</b></div>
+  </div>
+</header>
+
+<div class="game">
+  <canvas id="canvas" width="900" height="520"></canvas>
+  <div class="question-overlay" id="questionOverlay" role="dialog" aria-modal="true" aria-labelledby="questionText">
+    <div class="question-card">
+      <div class="question-top">
+        <span class="tag" id="questionTopic">العلوم</span>
+        <span class="tag" id="questionDifficulty">مستوى سهل</span>
+        <span class="tag" id="questionNumber">السؤال 1 من 30</span>
+      </div>
+      <div class="question-text" id="questionText">السؤال يظهر هنا</div>
+      <div class="answers" id="answers"></div>
+      <div class="feedback" id="feedback" aria-live="polite"></div>
+      <div class="question-actions">
+        <button id="continueQuestion" class="primary" style="display:none">متابعة الرحلة 🚀</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="box"><small>الجسم السماوي</small><b id="planetName">—</b></div>
+  <div class="box"><small>الجاذبية</small><b id="gravity">—</b></div>
+  <div class="box"><small>سرعة الصاروخ</small><b id="speed">0 m/s</b></div>
+  <div class="box"><small>الهدف</small><b>الوصول للمحطة</b></div>
+</div>
+
+<div class="mobile">
+  <button id="left" aria-label="دوران يسار">◀</button>
+  <button id="up" aria-label="دفع الصاروخ">▲</button>
+  <button id="right" aria-label="دوران يمين">▶</button>
+  <button id="down" aria-label="دفع الصاروخ إلى الأسفل" style="grid-column:2">▼</button>
+  <button class="wide" id="mobileStart">🚀 تشغيل / إيقاف</button>
+</div>
+<div class="buttons">
+  <button class="primary" id="start">🚀 ابدأ اللعبة</button>
+  <button id="restart">↻ إعادة اللعب</button>
+</div>
+<div class="info" id="info">
+  <b>FREE SPACE</b><br>
+  قودي الصاروخ إلى 🛰️ المحطة. عند الوصول إليها سيظهر سؤال علمي بأربعة اختيارات.<br>
+  الإجابة الصحيحة تمنحك نقاطًا ووقودًا إضافيًا. الأسئلة تشمل الفيزياء وعلم الأرض والفضاء.<br>
+  لا توجد مراحل ولا نهاية للعبة؛ بعد الإجابة ستُنشأ منطقة فضائية جديدة تلقائيًا.
+</div>
+</div>
+
+<script>
+"use strict";
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const W = 900, H = 520;
+
+let running = false;
+let awaitingQuestion = false;
+let score = 0;
+let fuel = 100;
+let lastTime = 0;
+let animation = null;
+let difficulty = 1;
+let questionCycle = 0;
+let questionQueue = [];
+let currentQuestion = null;
+let answered = false;
+let questionSerial = 0;
+
+const keys = Object.create(null);
+let particles = [];
+let rocks = [];
+const stars = [];
+for (let i=0;i<180;i++) stars.push({
+  x:Math.random()*W,y:Math.random()*H,
+  size:.3+Math.random()*1.5,alpha:.2+Math.random()*.7
+});
+
+const planetTypes = [
+  {name:"القمر",gravity:1.62,color:"#858d92"},
+  {name:"المريخ",gravity:3.71,color:"#9c594b"},
+  {name:"الأرض",gravity:9.81,color:"#527887"},
+  {name:"نبتون",gravity:11.15,color:"#536f91"},
+  {name:"المشتري",gravity:24.79,color:"#a58b72"},
+  {name:"زحل",gravity:10.44,color:"#a39272"},
+  {name:"كوكب جليدي",gravity:6.8,color:"#899ba4"},
+  {name:"كوكب عملاق",gravity:31.2,color:"#806e63"}
+];
+let planet = {x:600,y:260,r:55,gravity:9.81,name:"الأرض",color:"#527887"};
+let station = {x:780,y:120};
+let ship = {x:100,y:260,vx:0,vy:0,angle:0};
+
+/* بنك الأسئلة: 30 سؤالًا، تتدرج من الأساسي إلى الأكثر تحديًا. */
+const questions = [
+ {topic:"الفيزياء",level:"سهل",q:"ما القوة التي تجذب الأجسام نحو الأرض؟",a:["الجاذبية","المغناطيسية","الاحتكاك","الطفو"],correct:0,why:"الجاذبية قوة جذب بين الأجسام التي لها كتلة، وهي التي تُبقي الأجسام قرب سطح الأرض."},
+ {topic:"الفضاء",level:"سهل",q:"أي جسم يُعد نجمًا ويصدر الضوء من نفسه؟",a:["القمر","الشمس","الأرض","المريخ"],correct:1,why:"الشمس نجم ينتج الطاقة والضوء، بينما الكواكب والأقمار تعكس الضوء الذي يصلها."},
+ {topic:"علم الأرض",level:"سهل",q:"ما الطبقة الخارجية الصلبة للأرض؟",a:["النواة الداخلية","الوشاح","القشرة","النواة الخارجية"],correct:2,why:"القشرة هي الطبقة الخارجية الصلبة للأرض، وتوجد تحتها طبقة الوشاح."},
+ {topic:"الفيزياء",level:"سهل",q:"ما وحدة قياس القوة في النظام الدولي؟",a:["الجول","النيوتن","الواط","المتر"],correct:1,why:"تقاس القوة بالنيوتن، بينما الجول وحدة طاقة والواط وحدة قدرة."},
+ {topic:"الفضاء",level:"سهل",q:"أي كوكب نعيش عليه؟",a:["الزهرة","عطارد","الأرض","المشتري"],correct:2,why:"الأرض هي الكوكب الذي نعيش عليه، وتتوفر عليه مياه سائلة وظروف مناسبة للحياة المعروفة."},
+ {topic:"علم الأرض",level:"سهل",q:"أي مما يلي صخر ناري يتكون من تبريد الصهارة؟",a:["الجرانيت","الحجر الجيري","الفحم الحجري","الملح الصخري"],correct:0,why:"الجرانيت صخر ناري جوفي يتكون عندما تبرد الصهارة ببطء داخل القشرة الأرضية."},
+ {topic:"الفيزياء",level:"سهل",q:"ماذا يحدث عادةً لسرعة جسم إذا أثرت فيه قوة محصلة في اتجاه حركته؟",a:["تقل بالضرورة","تزداد","تظل ثابتة دائمًا","يختفي وزنه"],correct:1,why:"القوة المحصلة في اتجاه الحركة تسبب تسارعًا في هذا الاتجاه، فتزداد السرعة إذا استمر تأثيرها."},
+ {topic:"الفضاء",level:"سهل",q:"ما اسم القمر الطبيعي للأرض؟",a:["فوبوس","تيتان","القمر","أوروبا"],correct:2,why:"القمر هو القمر الطبيعي للأرض. أما فوبوس فيدور حول المريخ، وتيتان حول زحل، وأوروبا حول المشتري."},
+ {topic:"علم الأرض",level:"متوسط",q:"ما السبب الرئيسي لحركة الصفائح التكتونية على مدى الزمن الجيولوجي؟",a:["دوران القمر حول الأرض","حركة المادة في الوشاح ونقل الحرارة داخل الأرض","ضوء الشمس","المد والجزر وحدهما"],correct:1,why:"تساعد حركة المادة في الوشاح وانتقال الحرارة داخل الأرض، مع قوى أخرى، على تحريك الصفائح التكتونية."},
+ {topic:"الفيزياء",level:"متوسط",q:"إذا قطعت مركبة 100 متر خلال 20 ثانية بسرعة ثابتة، فما سرعتها المتوسطة؟",a:["2 m/s","5 m/s","20 m/s","80 m/s"],correct:1,why:"السرعة المتوسطة = المسافة ÷ الزمن = 100 ÷ 20 = 5 أمتار في الثانية."},
+ {topic:"الفضاء",level:"متوسط",q:"لماذا يبدو رواد الفضاء داخل محطة مدارية في حالة انعدام وزن تقريبًا؟",a:["لأن الجاذبية غير موجودة هناك","لأنهم والمركبة في سقوط حر مستمر حول الأرض","لأن المحطة بعيدة تمامًا عن الأرض","لأن كتلتهم تصبح صفرًا"],correct:1,why:"رواد الفضاء والمحطة يسقطون معًا باستمرار حول الأرض، لذلك يشعرون بانعدام الوزن تقريبًا، رغم أن الجاذبية ما زالت تؤثر فيهم."},
+ {topic:"علم الأرض",level:"متوسط",q:"أي أداة تُستخدم لتسجيل الاهتزازات الناتجة عن الزلازل؟",a:["البارومتر","مقياس الحرارة","السيزموجراف","مقياس الرطوبة"],correct:2,why:"يسجل السيزموجراف حركة الأرض الناتجة عن الموجات الزلزالية."},
+ {topic:"الفيزياء",level:"متوسط",q:"ما العلاقة الصحيحة بين الكتلة والوزن قرب سطح الأرض؟",a:["الوزن يساوي الكتلة مقسومة على الجاذبية","الوزن يساوي الكتلة مضروبة في تسارع الجاذبية","الكتلة والوزن لهما الوحدة نفسها","الوزن لا يتأثر بالجاذبية"],correct:1,why:"الوزن قوة جاذبية، ويُحسب قرب سطح الأرض من العلاقة: الوزن = الكتلة × تسارع الجاذبية."},
+ {topic:"الفضاء",level:"متوسط",q:"أي كوكب معروف بحلقاته الواسعة والبارزة؟",a:["عطارد","الأرض","زحل","المريخ"],correct:2,why:"زحل مشهور بحلقاته الواسعة المكونة من جليد وصخور ومواد صغيرة، مع أن كواكب أخرى لها حلقات أيضًا."},
+ {topic:"علم الأرض",level:"متوسط",q:"ما العملية التي يتحول فيها الماء السائل إلى بخار ماء؟",a:["التكاثف","التبخر","الهطول","التجمد"],correct:1,why:"التبخر هو انتقال الماء من الحالة السائلة إلى الحالة الغازية."},
+ {topic:"الفيزياء",level:"متوسط",q:"ما الطاقة التي يمتلكها جسم بسبب حركته؟",a:["طاقة كيميائية","طاقة وضع فقط","طاقة حركية","طاقة نووية"],correct:2,why:"الطاقة الحركية هي الطاقة المرتبطة بحركة الجسم، وتزداد بزيادة كتلته أو سرعته."},
+ {topic:"الفضاء",level:"متوسط",q:"ما السبب الأساسي لتعاقب الليل والنهار على الأرض؟",a:["دوران الأرض حول محورها","دوران القمر حول الأرض","تغير حجم الشمس","ابتعاد الأرض عن الشمس كل ليلة"],correct:0,why:"تدور الأرض حول محورها؛ فالجهة المواجهة للشمس يكون فيها النهار، والجهة الأخرى يكون فيها الليل."},
+ {topic:"علم الأرض",level:"متوسط",q:"أي نوع من الحدود التكتونية تتباعد عنده صفيحتان عن بعضهما؟",a:["حدود متقاربة","حدود متباعدة","حدود انزلاقية فقط","لا توجد حركة"],correct:1,why:"عند الحدود المتباعدة تتحرك الصفائح مبتعدة عن بعضها، وقد تتكون قشرة جديدة خاصة عند قيعان المحيطات."},
+ {topic:"الفيزياء",level:"متوسط",q:"إذا تضاعفت سرعة جسم، فكيف تتغير طاقته الحركية إذا بقيت كتلته ثابتة؟",a:["تتضاعف","تصبح أربعة أمثالها","تنخفض إلى النصف","لا تتغير"],correct:1,why:"الطاقة الحركية تتناسب مع مربع السرعة؛ لذلك مضاعفة السرعة تجعل الطاقة الحركية أربعة أمثالها."},
+ {topic:"الفضاء",level:"متوسط",q:"ما اسم المجرة التي تقع فيها مجموعتنا الشمسية؟",a:["مجرة المرأة المسلسلة","درب التبانة","سحابة ماجلان الكبرى","مجرة الدوامة"],correct:1,why:"تقع الشمس والأرض ضمن مجرة درب التبانة."},
+ {topic:"علم الأرض",level:"صعب",q:"أي دليل يدعم فكرة أن القارات كانت متصلة في الماضي؟",a:["تشابه أحافير متطابقة في قارات متباعدة","اختلاف طول اليوم بين المدن","تغير أطوار القمر","اختلاف ألوان المحيطات"],correct:0,why:"وجود أحافير متشابهة لكائنات برية في قارات تفصلها محيطات اليوم يُعد من الأدلة على اتصال القارات قديمًا."},
+ {topic:"الفيزياء",level:"صعب",q:"تؤثر قوة محصلة مقدارها 12 نيوتن في جسم كتلته 3 كغ. ما تسارعه؟",a:["4 m/s²","9 m/s²","15 m/s²","36 m/s²"],correct:0,why:"وفق قانون نيوتن الثاني: التسارع = القوة المحصلة ÷ الكتلة = 12 ÷ 3 = 4 m/s²."},
+ {topic:"الفضاء",level:"صعب",q:"لماذا تختلف الفصول على الأرض خلال السنة؟",a:["لأن الشمس تصبح أبرد كل شتاء","بسبب ميل محور الأرض أثناء دورانها حول الشمس","لأن الأرض تتوقف عن الدوران في الشتاء","بسبب ظل القمر على الأرض"],correct:1,why:"ينتج تعاقب الفصول أساسًا عن ميل محور الأرض أثناء دورانها حول الشمس، ما يغير زاوية سقوط أشعة الشمس وطول النهار."},
+ {topic:"علم الأرض",level:"صعب",q:"ما المقصود بالتحلل الإشعاعي الذي يُستخدم في التأريخ الإشعاعي للصخور؟",a:["تحول المعادن إلى ماء","تحول نوى غير مستقرة إلى نوى أخرى مع الزمن","تفتت الصخور بفعل الرياح فقط","ذوبان الصخور في المحيط"],correct:1,why:"تتحلل بعض النظائر المشعة بمعدلات معروفة، ويمكن قياس نسب النظائر لتقدير عمر بعض الصخور والمواد الجيولوجية."},
+ {topic:"الفيزياء",level:"صعب",q:"إذا أثرت قوة 10 نيوتن في اتجاه الحركة على جسم، وقوة 4 نيوتن بعكسها، فما القوة المحصلة؟",a:["14 نيوتن في اتجاه الحركة","6 نيوتن في اتجاه القوة الأكبر","6 نيوتن بعكس الحركة","40 نيوتن في اتجاه الحركة"],correct:1,why:"القوتان متعاكستان، لذا المحصلة = 10 − 4 = 6 نيوتن باتجاه القوة الأكبر."},
+ {topic:"الفضاء",level:"صعب",q:"ما الذي يحدد بشكل أساسي لون النجم ودرجة حرارة سطحه؟",a:["كتلته وحدها دائمًا","درجة حرارة سطحه","عدد كواكبه","بعده عن الأرض فقط"],correct:1,why:"يرتبط لون النجم بدرجة حرارة سطحه؛ فالنجوم الأكثر زرقة أسخن عادةً من النجوم الأكثر احمرارًا."},
+ {topic:"علم الأرض",level:"صعب",q:"كيف تتكون الصخور الرسوبية الفتاتية غالبًا؟",a:["بتراكم الرواسب ثم تراصها وتماسكها","بتجمد الحديد في الفضاء","بانصهار الصخور بالكامل ثم تبريدها","بتحول النواة الخارجية إلى قشرة"],correct:0,why:"تتكون الصخور الرسوبية الفتاتية من رواسب تتراكم ثم تتراص وتتلاحم بمرور الزمن."},
+ {topic:"الفيزياء",level:"صعب",q:"ما مقدار الشغل الذي تبذله قوة 5 نيوتن في اتجاه حركة جسم لمسافة 3 أمتار؟",a:["1.67 جول","8 جول","15 جول","30 جول"],correct:2,why:"عندما تكون القوة في اتجاه الإزاحة، الشغل = القوة × المسافة = 5 × 3 = 15 جول."},
+ {topic:"الفضاء",level:"صعب",q:"لماذا يبقى القمر في مداره حول الأرض بدلًا من التحرك في خط مستقيم؟",a:["لأن قوة الجاذبية تغير اتجاه حركته باستمرار","لأنه لا يمتلك سرعة","لأن الفضاء يحتوي على هواء كثيف","لأن ضوء الشمس يدفعه نحو الأرض"],correct:0,why:"يمتلك القمر سرعة جانبية، وتغير الجاذبية اتجاه حركته باستمرار، فيبقى في مدار حول الأرض."},
+ {topic:"علم الأرض",level:"صعب",q:"أي طبقة من الأرض تكون سائلة في معظمها وتتكون أساسًا من الحديد والنيكل؟",a:["القشرة","الوشاح العلوي كله","النواة الخارجية","النواة الداخلية"],correct:2,why:"النواة الخارجية طبقة سائلة غنية بالحديد والنيكل، بينما النواة الداخلية صلبة بسبب الضغط الهائل."}
+];
+
+const $ = id => document.getElementById(id);
+function random(min,max){return min+Math.random()*(max-min)}
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+function refillQuestionQueue(){
+  questionQueue = shuffle(questions.map((_,i)=>i));
+  questionCycle++;
+  updateHUD();
+}
+function updateHUD(){
+  $("score").textContent=Math.floor(score);
+  $("fuel").textContent=Math.round(fuel);
+  $("planetName").textContent=planet.name;
+  $("gravity").textContent=planet.gravity.toFixed(2)+" m/s²";
+  $("speed").textContent=Math.hypot(ship.vx,ship.vy).toFixed(1)+" m/s";
+  const completed = questions.length-questionQueue.length;
+  $("questionCount").textContent=questionQueue.length===0 ? "30/30" : `${completed}/30`;
+}
+function generateNewSpace(){
+  const type=planetTypes[Math.floor(Math.random()*planetTypes.length)];
+  const gravityVariation=.88+Math.random()*.24;
+  planet={
+    x:random(500,650),y:random(150,370),
+    r:Math.min(92,42+type.gravity*1.25),
+    gravity:type.gravity*gravityVariation,name:type.name,color:type.color
+  };
+  station={x:random(700,850),y:random(55,465)};
+  ship={x:random(70,130),y:random(100,420),vx:0,vy:0,angle:random(-.15,.15)};
+  fuel=100;
+  difficulty+=.35;
+  rocks=[];
+  const asteroidCount=Math.min(28,Math.floor(3+difficulty*1.25));
+  for(let i=0;i<asteroidCount;i++){
+    let x,y,attempts=0;
+    do{
+      x=random(220,850);y=random(30,490);attempts++;
+    }while(Math.hypot(x-planet.x,y-planet.y)<planet.r*2.1 && attempts<100);
+    const speedMultiplier=Math.min(2.2,.75+difficulty*.035);
+    rocks.push({x,y,r:random(7,14),vx:random(-.35,.35)*speedMultiplier,vy:random(-.35,.35)*speedMultiplier});
+  }
+  particles=[];
+  updateHUD();
+  $("info").innerHTML="<b>🌌 منطقة فضائية جديدة!</b><br>الجسم السماوي: "+planet.name+
+    "<br>الجاذبية: "+planet.gravity.toFixed(2)+" m/s²"+
+    "<br>وصّلي الصاروخ إلى المحطة للحصول على سؤال جديد."+
+    "<br><b>معلومة فيزيائية:</b> الجاذبية تغيّر سرعة واتجاه الصاروخ كلما اقترب من الجسم السماوي.";
+}
+function thrust(){
+  if(!running||awaitingQuestion||fuel<=0)return;
+  const power=.075*(1+Math.min(difficulty,30)*.012);
+  ship.vx+=Math.cos(ship.angle)*power;
+  ship.vy+=Math.sin(ship.angle)*power;
+  fuel=Math.max(0,fuel-.16);
+  for(let i=0;i<2;i++)particles.push({
+    x:ship.x-Math.cos(ship.angle)*15,y:ship.y-Math.sin(ship.angle)*15,
+    vx:-Math.cos(ship.angle)*random(1,2),vy:-Math.sin(ship.angle)*random(1,2),life:1
+  });
+}
+function showQuestion(){
+  running=false;
+  awaitingQuestion=true;
+  cancelAnimationFrame(animation);
+  animation=null;
+  if(questionQueue.length===0)refillQuestionQueue();
+  const idx=questionQueue.pop();
+  currentQuestion=questions[idx];
+  answered=false;
+  questionSerial++;
+  $("questionTopic").textContent=currentQuestion.topic;
+  $("questionDifficulty").textContent="مستوى "+currentQuestion.level;
+  $("questionNumber").textContent="السؤال "+(questions.length-questionQueue.length)+" من 30"+(questionCycle>1?" — دورة "+questionCycle:"");
+  $("questionText").textContent=currentQuestion.q;
+  $("feedback").className="feedback";
+  $("feedback").textContent="";
+  $("continueQuestion").style.display="none";
+  const answers=$("answers");
+  answers.innerHTML="";
+  currentQuestion.a.forEach((label,i)=>{
+    const btn=document.createElement("button");
+    btn.className="answer";
+    btn.textContent=String.fromCharCode(0x0623+i)+". "+label;
+    btn.addEventListener("click",()=>answerQuestion(i,btn));
+    answers.appendChild(btn);
+  });
+  $("info").innerHTML="<b>🛰️ وصلتِ إلى المحطة!</b><br>أجيبي عن السؤال العلمي لتكسبي مكافأتك وتواصلي الرحلة.";
+  $("questionOverlay").classList.add("show");
+  draw();
+}
+function answerQuestion(choice,clickedButton){
+  if(answered||!currentQuestion)return;
+  answered=true;
+  const correct=choice===currentQuestion.correct;
+  const buttons=[...$("answers").querySelectorAll("button")];
+  buttons.forEach((btn,i)=>{
+    btn.disabled=true;
+    if(i===currentQuestion.correct)btn.classList.add("correct");
+    else if(i===choice)btn.classList.add("wrong");
+  });
+  if(correct){
+    const reward=50+Math.floor(difficulty*10);
+    score+=reward;
+    fuel=Math.min(100,fuel+25);
+    $("feedback").innerHTML="<b>✅ إجابة صحيحة!</b><br>"+currentQuestion.why+
+      "<br><b>المكافأة:</b> +"+reward+" نقطة و +25% وقود.";
+  }else{
+    score=Math.max(0,score-10);
+    fuel=Math.min(100,fuel+10);
+    $("feedback").innerHTML="<b>📘 ليست الإجابة الصحيحة.</b><br><b>الإجابة الصحيحة:</b> "+
+      currentQuestion.a[currentQuestion.correct]+"<br>"+currentQuestion.why+
+      "<br><b>المكافأة:</b> +10% وقود للمحاولة التالية. خُصمت 10 نقاط.";
+  }
+  $("feedback").classList.add("show");
+  $("continueQuestion").style.display="block";
+  $("info").innerHTML=correct
+    ? "<b>🌟 أحسنتِ!</b><br>أُضيفت المكافأة إلى رصيدك. اضغطي متابعة الرحلة للانتقال إلى منطقة جديدة."
+    : "<b>🧠 تعلّم معلومة جديدة!</b><br>راجعي الشرح، ثم تابعي الرحلة إلى منطقة جديدة.";
+  updateHUD();
+}
+function continueAfterQuestion(){
+  $("questionOverlay").classList.remove("show");
+  awaitingQuestion=false;
+  currentQuestion=null;
+  generateNewSpace();
+  draw();
+  startGame();
+}
+function physics(dt){
+  const dx=planet.x-ship.x,dy=planet.y-ship.y;
+  const distance=Math.hypot(dx,dy);
+  if(distance>planet.r+8){
+    const pull=(planet.gravity/9.81)*.024*(1+Math.min(difficulty,30)*.012);
+    ship.vx+=dx/distance*pull*dt*60;
+    ship.vy+=dy/distance*pull*dt*60;
+  }
+  if(keys.ArrowLeft||keys.a)ship.angle-=.045*dt*60;
+  if(keys.ArrowRight||keys.d)ship.angle+=.045*dt*60;
+  if(keys.ArrowUp||keys.w)thrust();
+  if(keys.ArrowDown && running && !awaitingQuestion && fuel>0){
+    ship.vy+=.075*(1+Math.min(difficulty,30)*.012)*dt*60;
+    fuel=Math.max(0,fuel-.16*dt*60);
+  }
+  ship.x+=ship.vx*dt*60;
+  ship.y+=ship.vy*dt*60;
+  const drag=.999-(Math.min(difficulty,30)*.00002);
+  ship.vx*=drag;ship.vy*=drag;
+
+  for(const rock of rocks){
+    rock.x+=rock.vx*dt*60;rock.y+=rock.vy*dt*60;
+    if(rock.x<-20)rock.x=W+20;if(rock.x>W+20)rock.x=-20;
+    if(rock.y<-20)rock.y=H+20;if(rock.y>H+20)rock.y=-20;
+    const d=Math.hypot(ship.x-rock.x,ship.y-rock.y);
+    if(d<rock.r+10){
+      score=Math.max(0,score-15);
+      ship.vx*= -.55;ship.vy*= -.55;
+      for(let i=0;i<8;i++)particles.push({x:ship.x,y:ship.y,vx:random(-1.5,1.5),vy:random(-1.5,1.5),life:1});
+    }
+  }
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];p.x+=p.vx*dt*60;p.y+=p.vy*dt*60;p.life-=dt*2;
+    if(p.life<=0)particles.splice(i,1);
+  }
+  if(distance<=planet.r+8){
+    running=false;cancelAnimationFrame(animation);animation=null;
+    $("info").innerHTML="<b>💥 اصطدمتِ بالكوكب!</b><br>الجاذبية سحبت الصاروخ باتجاه الكوكب. أعيدي التشغيل وحاولي استخدام الدفع وتغيير الاتجاه قبل الاقتراب كثيرًا.";
+    updateHUD();draw();return;
+  }
+  const stationDistance=Math.hypot(ship.x-station.x,ship.y-station.y);
+  if(stationDistance<30){showQuestion();return;}
+  if(fuel<=0&&Math.hypot(ship.vx,ship.vy)<.05){
+    running=false;cancelAnimationFrame(animation);animation=null;
+    $("info").innerHTML="<b>⛽ نفد الوقود.</b><br>أعيدي التشغيل وحاولي استخدام الدفع على دفعات قصيرة.";
+  }
+  ship.x=Math.max(-70,Math.min(W+70,ship.x));
+  ship.y=Math.max(-70,Math.min(H+70,ship.y));
+  updateHUD();
+}
+function draw(){
+  ctx.fillStyle="#070a0d";ctx.fillRect(0,0,W,H);
+  for(const star of stars){
+    ctx.globalAlpha=star.alpha;ctx.fillStyle="#dce1e4";ctx.beginPath();ctx.arc(star.x,star.y,star.size,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  const glow=ctx.createRadialGradient(planet.x,planet.y,planet.r*.4,planet.x,planet.y,planet.r*2.7);
+  glow.addColorStop(0,"rgba(200,205,205,.15)");glow.addColorStop(1,"rgba(200,205,205,0)");
+  ctx.fillStyle=glow;ctx.beginPath();ctx.arc(planet.x,planet.y,planet.r*2.7,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=planet.color;ctx.beginPath();ctx.arc(planet.x,planet.y,planet.r,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle="rgba(255,255,255,.18)";ctx.lineWidth=2;ctx.beginPath();ctx.arc(planet.x-8,planet.y-7,planet.r*.63,.2,2.7);ctx.stroke();
+  ctx.strokeStyle="rgba(170,180,185,.25)";ctx.setLineDash([5,7]);ctx.beginPath();ctx.arc(planet.x,planet.y,planet.r*2.5,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+  for(const rock of rocks){ctx.fillStyle="#70777b";ctx.beginPath();ctx.arc(rock.x,rock.y,rock.r,0,Math.PI*2);ctx.fill();}
+  ctx.fillStyle="#d9d2b8";ctx.fillRect(station.x-14,station.y-10,28,20);
+  ctx.fillStyle="#7893a0";ctx.fillRect(station.x-5,station.y-18,10,36);
+  ctx.fillStyle="#fff";ctx.font="11px Arial";ctx.textAlign="center";ctx.fillText("المحطة",station.x,station.y+29);
+  for(const p of particles){ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle="#c9d3d8";ctx.beginPath();ctx.arc(p.x,p.y,2.2,0,Math.PI*2);ctx.fill();}
+  ctx.globalAlpha=1;
+  ctx.save();ctx.translate(ship.x,ship.y);ctx.rotate(ship.angle);
+  if((keys.ArrowUp||keys.w)&&fuel>0&&running){
+    ctx.fillStyle="#e58b3d";ctx.beginPath();ctx.moveTo(-12,-7);ctx.lineTo(-35,0);ctx.lineTo(-12,7);ctx.closePath();ctx.fill();
+    ctx.fillStyle="#f5d16b";ctx.beginPath();ctx.moveTo(-14,-3);ctx.lineTo(-28,0);ctx.lineTo(-14,3);ctx.closePath();ctx.fill();
+  }
+  ctx.fillStyle="#e0e4e6";ctx.beginPath();ctx.moveTo(24,0);ctx.quadraticCurveTo(15,-13,-5,-12);ctx.lineTo(-14,-7);ctx.lineTo(-14,7);ctx.lineTo(-5,12);ctx.quadraticCurveTo(15,13,24,0);ctx.closePath();ctx.fill();
+  ctx.fillStyle="#b8c2c7";ctx.beginPath();ctx.moveTo(24,0);ctx.quadraticCurveTo(15,-9,5,-10);ctx.quadraticCurveTo(17,0,5,10);ctx.quadraticCurveTo(15,9,24,0);ctx.closePath();ctx.fill();
+  ctx.fillStyle="#52798c";ctx.beginPath();ctx.arc(5,0,5,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#d5e0e5";ctx.lineWidth=1;ctx.stroke();
+  ctx.fillStyle="#8d969b";ctx.beginPath();ctx.moveTo(-7,-7);ctx.lineTo(-19,-17);ctx.lineTo(-2,-12);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(-7,7);ctx.lineTo(-19,17);ctx.lineTo(-2,12);ctx.closePath();ctx.fill();
+  ctx.fillStyle="#656d72";ctx.fillRect(-16,-6,5,12);ctx.restore();
+  ctx.fillStyle="#fff";ctx.font="12px Arial";ctx.textAlign="left";
+  ctx.fillText("v = "+Math.hypot(ship.vx,ship.vy).toFixed(1)+" m/s",12,20);
+}
+function loop(time){
+  if(!running||awaitingQuestion){draw();return;}
+  if(!lastTime)lastTime=time;
+  const dt=Math.min((time-lastTime)/1000,.033);
+  lastTime=time;
+  physics(dt);draw();
+  if(running&&!awaitingQuestion)animation=requestAnimationFrame(loop);
+}
+function startGame(){
+  if(awaitingQuestion)return;
+  if(running){
+    running=false;cancelAnimationFrame(animation);animation=null;
+    $("info").innerHTML="<b>⏸️ اللعبة متوقفة مؤقتًا.</b><br>اضغطي تشغيل لمتابعة الرحلة.";
+    draw();return;
+  }
+  running=true;lastTime=0;
+  cancelAnimationFrame(animation);
+  animation=requestAnimationFrame(loop);
+}
+function restartGame(){
+  running=false;awaitingQuestion=false;answered=false;
+  cancelAnimationFrame(animation);animation=null;
+  $("questionOverlay").classList.remove("show");
+  score=0;fuel=100;difficulty=1;questionCycle=0;
+  questionQueue=[];
+  refillQuestionQueue();
+  generateNewSpace();
+  $("info").innerHTML="<b>🚀 بدأت رحلة جديدة!</b><br>قودي الصاروخ إلى المحطة للإجابة عن الأسئلة العلمية.";
+  draw();
+}
+window.addEventListener("keydown",e=>{
+  if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key))e.preventDefault();
+  keys[e.key]=true;
+});
+window.addEventListener("keyup",e=>{keys[e.key]=false;});
+window.addEventListener("blur",()=>{for(const k in keys)keys[k]=false;});
+function touchButton(id,key){
+  const button=$(id);
+  const release=()=>{keys[key]=false;};
+  button.addEventListener("pointerdown",e=>{e.preventDefault();keys[key]=true;});
+  ["pointerup","pointercancel","pointerleave"].forEach(event=>button.addEventListener(event,release));
+}
+touchButton("left","ArrowLeft");touchButton("right","ArrowRight");touchButton("up","ArrowUp");touchButton("down","ArrowDown");
+$("start").addEventListener("click",startGame);
+$("mobileStart").addEventListener("click",startGame);
+$("restart").addEventListener("click",restartGame);
+$("continueQuestion").addEventListener("click",continueAfterQuestion);
+
+refillQuestionQueue();
+generateNewSpace();
+draw();
+</script>
+</body>
+</html>
